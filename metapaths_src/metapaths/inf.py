@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import itertools
 from py2neo import Graph
 import socket
 from .starterpack import save_pickle
@@ -99,7 +100,8 @@ rel_data_to_get = [
 ]
 
 
-def get_node_freqs(graph, node_id_field, node_id, reltype_counts):
+def get_node_freq(graph, node_id_field, 
+                   node_id, rel_type):
 
     node_freq_query = f'''
                     MATCH (n)-[rel]-()
@@ -110,17 +112,38 @@ def get_node_freqs(graph, node_id_field, node_id, reltype_counts):
     # any node type will typically be heads-only (all out-degree) or
     # tails-only (all in-degree)
 
-    node_freqs = {}
+    node_freq = graph.run(node_freq_query,
+                          node=node_id,
+                          rel=rel_type).evaluate()
 
-    for rel_type in reltype_counts['Relation_type']:
+    return node_freq
 
-        node_freqs[rel_type] = graph.run(
-            node_freq_query,
-            node=node_id,
-            rel=rel_type).evaluate()
 
-    return node_freqs
+def add_unseen_node_freq(graph, nodes, node_id_field,
+                  nodes_freqs, rel_type):
+    
+    node_freq_query = f'''
+                MATCH (n)-[rel]-()
+                WHERE n.{node_id_field} = $node AND type(rel) = $rel
+                RETURN COUNT(rel)
+                '''
+    for node in nodes:
 
+        if node not in nodes_freqs:
+
+            nodes_freqs[node] = {rel_type: graph.run(
+                          node_freq_query,
+                          node=node_id_field,
+                          rel=rel_type).evaluate()
+            }
+
+        elif rel_type not in nodes_freqs[node]:
+
+            nodes_freqs[node][rel_type] = graph.run(
+                          node_freq_query,
+                          node=node_id_field,
+                          rel=rel_type).evaluate()
+            
 
 class INFToolbox:
 
@@ -223,7 +246,9 @@ class INFToolbox:
     def get_inf_dict_save(self, target_pairs: pd.DataFrame,
                           head_type: str, tail_type: str,
                           metapath_feats: list,
-                          node_id_field: str, reltype_counts: dict,
+                          node_id_field_: str,
+                          reltype_counts: dict,
+                          reltype_counts_reindexed: dict,
                           save=False, save_str=None):
 
         '''
@@ -271,8 +296,9 @@ class INFToolbox:
             metapath_query_template = self.metapath_query_templates[
                                                                 path_length]
 
-            metapath_query = create_fstr_from_template(metapath_query_template,
-                                                       pattern=feat)
+            metapath_query = create_fstr_from_template(
+                metapath_query_template, pattern=feat,
+                node_id_field=node_id_field_)
 
             rels = ['r' + str(rel_idx+1) for rel_idx in range((path_length))]
 
@@ -306,15 +332,12 @@ class INFToolbox:
                     target_pairs_inf[feat][target_pair_name][
                         'metapath_count'] = target_pair_data['metapath_count']
 
-                    metapath_nodes = set(target_pair_data['metapath_nodes'])
-
-                    for node in metapath_nodes:
-
-                        if node not in nodes_freqs:
-
-                            nodes_freqs[node] = get_node_freqs(
-                                self.graph, node_id_field, node,
-                                reltype_counts)
+                    # flatten list of lists of captured nodes and get their set
+                    metapath_nodes = set(
+                        itertools.chain.from_iterable(
+                            target_pair_data['metapath_nodes']
+                        )
+                        )
 
                     for rel in rels:
 
@@ -325,26 +348,45 @@ class INFToolbox:
 
                         rel_heads = set([pair[0] for pair in uniq_rel_pairs])
 
+                        rel_tails = set([pair[1] for pair in uniq_rel_pairs])
+
+                        rel_nodes = rel_heads | rel_tails
+
+                        for node in rel_nodes:
+
+                            if node not in nodes_freqs:
+
+                                nodes_freqs[node] = {}
+
+                                if rel_name not in nodes_freqs[node]:
+
+                                    nodes_docf[node] = self.graph.run(
+                    node_freq_query,
+                    node=node_id,
+                    rel=rel_type).evaluate()
+
                         # degs of head nodes for this rel
                         rel_heads_node_f = [nodes_freqs[rel_head][rel_name]
                                             for rel_head in rel_heads]
 
                         rel_heads_inf = [np.log10(
-                                            (reltype_counts[rel_name].values /
-                                             rel_head_node_f))
+                                            (reltype_counts_reindexed[
+                                                rel_name].values /
+                                                rel_head_node_f)
+                                                )
                                          for rel_head_node_f
                                          in rel_heads_node_f]
                         # use .values to avoid returning an array
 
-                        rel_tails = set([pair[1] for pair in uniq_rel_pairs])
 
                         # degs of tail nodes for this rel
                         rel_tails_node_f = [nodes_freqs[rel_tail][rel_name]
                                             for rel_tail in rel_tails]
 
-                        rel_tails_inf = [np.log10((reltype_counts[rel_name].
-                                                   values /
-                                                   rel_tail_node_f))
+                        rel_tails_inf = [np.log10(
+                                            (reltype_counts_reindexed[
+                                                rel_name].values /
+                                                rel_tail_node_f))
                                          for rel_tail_node_f
                                          in rel_tails_node_f]
 
@@ -466,7 +508,9 @@ class INFToolbox:
     def run_pipeline(self, target_pairs: pd.DataFrame,
                      head_type: str, tail_type: str,
                      metapath_feats: list,
-                     nodes_freq: dict, reltype_counts: dict,
+                     node_id_field_: str, 
+                     reltype_counts: dict,
+                     reltype_counts_reindexed: dict,
                      param_combos: list,
                      save=False, save_str=None):
 
@@ -498,8 +542,9 @@ class INFToolbox:
         computed_inf_dict = self.get_inf_dict_save(target_pairs,
                                                    head_type, tail_type,
                                                    metapath_feats,
-                                                   nodes_freq,
+                                                   node_id_field_,
                                                    reltype_counts,
+                                                   reltype_counts_reindexed,
                                                    save, save_str)
 
         feat_dfs = self.extract_feat_dfs(computed_inf_dict)
