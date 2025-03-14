@@ -17,34 +17,22 @@ n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([
-n_source.{node_id_field},
-n_1.{node_id_field},
-n_target.{node_id_field}
-]) AS metapath_nodes,
 collect([n_source.{node_id_field}, n_1.{node_id_field}])
 AS r1_pairs, type(r1) AS r1,
 collect([n_1.{node_id_field}, n_target.{node_id_field}])
 AS r2_pairs, type(r2) AS r2
 RETURN
 metapath_count,
-metapath_nodes,
 r1, r1_pairs,
 r2, r2_pairs'''
 
 # Length-3 metapaths
-metapath_templ_l3 = '''MATCH path = {pattern}''' + '''
-WHERE n_source.{node_id_field} = $head AND 
+metapath_templ_l3 = '''MATCH path = {pattern}
+WHERE n_source.{node_id_field} = $head AND
 n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([
-n_source.{node_id_field},
-n_1.{node_id_field},
-n_2.{node_id_field},
-n_target.{node_id_field}
-]) AS metapath_nodes,
 collect([n_source.{node_id_field}, n_1.{node_id_field}]) 
 AS r1_pairs, type(r1) AS r1,
 collect([n_1.{node_id_field}, n_2.{node_id_field}]) 
@@ -53,25 +41,17 @@ collect([n_2.{node_id_field}, n_target.{node_id_field}])
 AS r3_pairs, type(r3) AS r3
 RETURN
 metapath_count,
-metapath_nodes,
 r1, r1_pairs,
 r2, r2_pairs,
 r3, r3_pairs'''
 
 # Length-4 metapaths
-metapath_templ_l4 = '''MATCH path = {pattern}''' + '''
+metapath_templ_l4 = '''MATCH path = {pattern}
 WHERE n_source.{node_id_field} = $head AND
 n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([
-n_source.{node_id_field},
-n_1.{node_id_field},
-n_2.{node_id_field},
-n_3.{node_id_field},
-n_target.{node_id_field}
-]) AS metapath_nodes,
 collect([n_source.{node_id_field}, n_1.{node_id_field}]) 
 AS r1_pairs, type(r1) AS r1,
 collect([n_1.{node_id_field}, n_2.{node_id_field}]) 
@@ -82,7 +62,6 @@ collect([n_3.{node_id_field}, n_target.{node_id_field}])
 AS r4_pairs, type(r4) AS r4
 RETURN
 metapath_count,
-metapath_nodes,
 r1, r1_pairs,
 r2, r2_pairs,
 r3, r3_pairs
@@ -100,28 +79,9 @@ rel_data_to_get = [
 ]
 
 
-def get_node_freq(graph, node_id_field, 
-                   node_id, rel_type):
-
-    node_freq_query = f'''
-                    MATCH (n)-[rel]-()
-                    WHERE n.{node_id_field} = $node AND type(rel) = $rel
-                    RETURN COUNT(rel)
-                    '''
-    # not making a distinction between out-degree and in-degree as
-    # any node type will typically be heads-only (all out-degree) or
-    # tails-only (all in-degree)
-
-    node_freq = graph.run(node_freq_query,
-                          node=node_id,
-                          rel=rel_type).evaluate()
-
-    return node_freq
-
-
 def add_unseen_node_freq(graph, nodes, node_id_field,
-                  nodes_freqs, rel_type):
-    
+                         nodes_freqs, rel_type):
+
     node_freq_query = f'''
                 MATCH (n)-[rel]-()
                 WHERE n.{node_id_field} = $node AND type(rel) = $rel
@@ -143,7 +103,7 @@ def add_unseen_node_freq(graph, nodes, node_id_field,
                           node_freq_query,
                           node=node_id_field,
                           rel=rel_type).evaluate()
-            
+
 
 class INFToolbox:
 
@@ -332,13 +292,6 @@ class INFToolbox:
                     target_pairs_inf[feat][target_pair_name][
                         'metapath_count'] = target_pair_data['metapath_count']
 
-                    # flatten list of lists of captured nodes and get their set
-                    metapath_nodes = set(
-                        itertools.chain.from_iterable(
-                            target_pair_data['metapath_nodes']
-                        )
-                        )
-
                     for rel in rels:
 
                         rel_name = target_pair_data[f'{rel}']
@@ -352,18 +305,10 @@ class INFToolbox:
 
                         rel_nodes = rel_heads | rel_tails
 
-                        for node in rel_nodes:
-
-                            if node not in nodes_freqs:
-
-                                nodes_freqs[node] = {}
-
-                                if rel_name not in nodes_freqs[node]:
-
-                                    nodes_docf[node] = self.graph.run(
-                    node_freq_query,
-                    node=node_id,
-                    rel=rel_type).evaluate()
+                        add_unseen_node_freq(self.graph,
+                                             rel_nodes,
+                                             node_id_field_,
+                                             nodes_freqs, rel_name)
 
                         # degs of head nodes for this rel
                         rel_heads_node_f = [nodes_freqs[rel_head][rel_name]
