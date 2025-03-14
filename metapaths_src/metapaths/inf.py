@@ -3,51 +3,85 @@ import numpy as np
 from tqdm import tqdm
 from py2neo import Graph
 import socket
-from .starterpack import save_pickle, find_highest_rel, create_fstr_from_template
+from .starterpack import save_pickle
+from .starterpack import find_highest_rel, create_fstr_from_template
 
 
 # Templates required for metapath count extraction and node INF computation
 
 # Length-2 metapaths
-metapath_templ_l2 = '''MATCH path = {pattern}''' + '''
-WHERE n_source.name = $head AND n_target.name = $tail
+metapath_templ_l2 = '''MATCH path = {pattern}
+WHERE n_source.{node_id_field} = $head AND
+n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([n_source.name, n_1.name]) AS r1_pairs, type(r1) AS r1,
-collect([n_1.name, n_target.name]) AS r2_pairs, type(r2) AS r2
+collect([
+n_source.{node_id_field},
+n_1.{node_id_field},
+n_target.{node_id_field}
+]) AS metapath_nodes,
+collect([n_source.{node_id_field}, n_1.{node_id_field}])
+AS r1_pairs, type(r1) AS r1,
+collect([n_1.{node_id_field}, n_target.{node_id_field}])
+AS r2_pairs, type(r2) AS r2
 RETURN
 metapath_count,
+metapath_nodes,
 r1, r1_pairs,
 r2, r2_pairs'''
 
 # Length-3 metapaths
 metapath_templ_l3 = '''MATCH path = {pattern}''' + '''
-WHERE n_source.name = $head AND n_target.name = $tail
+WHERE n_source.{node_id_field} = $head AND 
+n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([n_source.name, n_1.name]) AS r1_pairs, type(r1) AS r1,
-collect([n_1.name, n_2.name]) AS r2_pairs, type(r2) AS r2,
-collect([n_2.name, n_target.name]) AS r3_pairs, type(r3) AS r3
+collect([
+n_source.{node_id_field},
+n_1.{node_id_field},
+n_2.{node_id_field},
+n_target.{node_id_field}
+]) AS metapath_nodes,
+collect([n_source.{node_id_field}, n_1.{node_id_field}]) 
+AS r1_pairs, type(r1) AS r1,
+collect([n_1.{node_id_field}, n_2.{node_id_field}]) 
+AS r2_pairs, type(r2) AS r2,
+collect([n_2.{node_id_field}, n_target.{node_id_field}]) 
+AS r3_pairs, type(r3) AS r3
 RETURN
 metapath_count,
+metapath_nodes,
 r1, r1_pairs,
 r2, r2_pairs,
 r3, r3_pairs'''
 
 # Length-4 metapaths
 metapath_templ_l4 = '''MATCH path = {pattern}''' + '''
-WHERE n_source.name = $head AND n_target.name = $tail
+WHERE n_source.{node_id_field} = $head AND
+n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([n_source.name, n_1.name]) AS r1_pairs, type(r1) AS r1,
-collect([n_1.name, n_2.name]) AS r2_pairs, type(r2) AS r2,
-collect([n_2.name, n_3.name]) AS r3_pairs, type(r3) AS r3,
-collect([n_3.name, n_target.name]) AS r4_pairs, type(r4) AS r4
+collect([
+n_source.{node_id_field},
+n_1.{node_id_field},
+n_2.{node_id_field},
+n_3.{node_id_field},
+n_target.{node_id_field}
+]) AS metapath_nodes,
+collect([n_source.{node_id_field}, n_1.{node_id_field}]) 
+AS r1_pairs, type(r1) AS r1,
+collect([n_1.{node_id_field}, n_2.{node_id_field}]) 
+AS r2_pairs, type(r2) AS r2,
+collect([n_2.{node_id_field}, n_3.{node_id_field}]) 
+AS r3_pairs, type(r3) AS r3,
+collect([n_3.{node_id_field}, n_target.{node_id_field}]) 
+AS r4_pairs, type(r4) AS r4
 RETURN
 metapath_count,
+metapath_nodes,
 r1, r1_pairs,
 r2, r2_pairs,
 r3, r3_pairs
@@ -57,6 +91,35 @@ r4, r4_pairs'''
 query_templates_234 = {2: metapath_templ_l2,
                        3: metapath_templ_l3,
                        4: metapath_templ_l4}
+
+rel_data_to_get = [
+                '{_rel}_min_Inf',
+                '{_rel}_max_Inf',
+                '{_rel}_mean_Inf'
+]
+
+
+def get_node_freqs(graph, node_id_field, node_id, reltype_counts):
+
+    node_freq_query = f'''
+                    MATCH (n)-[rel]-()
+                    WHERE n.{node_id_field} = $node AND type(rel) = $rel
+                    RETURN COUNT(rel)
+                    '''
+    # not making a distinction between out-degree and in-degree as
+    # any node type will typically be heads-only (all out-degree) or
+    # tails-only (all in-degree)
+
+    node_freqs = {}
+
+    for rel_type in reltype_counts['Relation_type']:
+
+        node_freqs[rel_type] = graph.run(
+            node_freq_query,
+            node=node_id,
+            rel=rel_type).evaluate()
+
+    return node_freqs
 
 
 class INFToolbox:
@@ -160,7 +223,7 @@ class INFToolbox:
     def get_inf_dict_save(self, target_pairs: pd.DataFrame,
                           head_type: str, tail_type: str,
                           metapath_feats: list,
-                          nodes_freq: dict, reltype_counts: dict,
+                          node_id_field: str, reltype_counts: dict,
                           save=False, save_str=None):
 
         '''
@@ -196,6 +259,9 @@ class INFToolbox:
 
         target_pairs_inf = {feat: {} for feat in metapath_feats}
 
+        # initialise rel-specific deg lookup here
+        nodes_freqs = {}
+
         for feat in metapath_feats:
 
             print(f'Processing {feat}...')
@@ -214,6 +280,8 @@ class INFToolbox:
 
                 target_pair_name = row['PairID']
 
+                target_pairs_inf[feat][target_pair_name] = {}
+
                 target_pair_data = self.graph.run(metapath_query,
                                                   head=row[head_type],
                                                   tail=row[tail_type]).data()
@@ -221,31 +289,32 @@ class INFToolbox:
                 if len(target_pair_data) == 0:
 
                     # when no paths found assign 0 for every field
-                    target_pairs_inf[feat][target_pair_name] = {}
                     target_pairs_inf[feat][target_pair_name][
                                                         'metapath_count'] = 0
 
                     for rel in rels:
+                        for item in rel_data_to_get:
 
-                        target_pairs_inf[feat][target_pair_name][
-                                                f'{rel}_num_unique_nodes'] = 0
+                            target_pairs_inf[feat][target_pair_name][
+                                    create_fstr_from_template(item,
+                                                              _rel=rel)] = 0
 
-                        target_pairs_inf[feat][target_pair_name][
-                                                f'{rel}_min_Inf'] = 0
-
-                        target_pairs_inf[feat][target_pair_name][
-                                                f'{rel}_max_Inf'] = 0
-
-                        target_pairs_inf[feat][target_pair_name][
-                                                f'{rel}_mean_Inf'] = 0
                 else:
 
                     target_pair_data = target_pair_data[0]
 
-                    target_pairs_inf[feat][target_pair_name] = {}
-
                     target_pairs_inf[feat][target_pair_name][
                         'metapath_count'] = target_pair_data['metapath_count']
+
+                    metapath_nodes = set(target_pair_data['metapath_nodes'])
+
+                    for node in metapath_nodes:
+
+                        if node not in nodes_freqs:
+
+                            nodes_freqs[node] = get_node_freqs(
+                                self.graph, node_id_field, node,
+                                reltype_counts)
 
                     for rel in rels:
 
@@ -257,7 +326,7 @@ class INFToolbox:
                         rel_heads = set([pair[0] for pair in uniq_rel_pairs])
 
                         # degs of head nodes for this rel
-                        rel_heads_node_f = [nodes_freq[rel_head][rel_name]
+                        rel_heads_node_f = [nodes_freqs[rel_head][rel_name]
                                             for rel_head in rel_heads]
 
                         rel_heads_inf = [np.log10(
@@ -270,7 +339,7 @@ class INFToolbox:
                         rel_tails = set([pair[1] for pair in uniq_rel_pairs])
 
                         # degs of tail nodes for this rel
-                        rel_tails_node_f = [nodes_freq[rel_tail][rel_name]
+                        rel_tails_node_f = [nodes_freqs[rel_tail][rel_name]
                                             for rel_tail in rel_tails]
 
                         rel_tails_inf = [np.log10((reltype_counts[rel_name].
@@ -278,10 +347,6 @@ class INFToolbox:
                                                    rel_tail_node_f))
                                          for rel_tail_node_f
                                          in rel_tails_node_f]
-
-                        target_pairs_inf[feat][target_pair_name][
-                            f'{rel}_num_unique_nodes'] = len(rel_heads.union(
-                                                             rel_tails))
 
                         target_pairs_inf[feat][target_pair_name][
                             f'{rel}_min_Inf'] = np.min(rel_heads_inf +
