@@ -1,5 +1,6 @@
 setup.py
 metapaths/__init__.py
+metapaths/get_inf_dyn.py
 metapaths/inf.py
 metapaths/starterpack.py
 metapaths.egg-info/PKG-INFO

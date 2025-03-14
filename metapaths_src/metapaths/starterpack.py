@@ -32,14 +32,15 @@ def check_graph_connection(host, port):
 
 
 def cypher_triple_to_list(triples: list, directed=True):
+
     '''
     Converts a Cypher triple string to a list of strings
-    representing the triple's head, relation, tail sequence for directed 
+    representing the triple's head, relation, tail sequence for directed
     relationships, or the unordered sequence of entity, relation, entity
     for undirected relationships.
 
-    This formatting is required for exhaustive metapath Cypher pattern 
-    generation from available triples using metapath_gen() and 
+    This formatting is required for exhaustive metapath Cypher pattern
+    generation from available triples using metapath_gen() and
     metapath_featset_gen().
 
     Args:
@@ -48,12 +49,12 @@ def cypher_triple_to_list(triples: list, directed=True):
                     "(:Film)-[:Released_in]->(:Year)",
                     "(:Film)-[:Features]->(:Song)"
                     ]
-    
+
     directed: specify if the formatting should add the ">"
     character to indicate a directed relationship.
 
     Returns:
-    A list of lists, where each inner list represents a 
+    A list of lists, where each inner list represents a
     formatted triple type e.g.:
     [
     ["(:Film)", "-[:Released_in]->", "(:Year)"],
@@ -243,10 +244,9 @@ def find_highest_rel(metapath: str, rel_prefix):
 def create_fstr_from_template(template, **kwargs):
 
     '''
-    Creates metapath Cypher queries from templates formatted with newline chars 
-    e.g. re-formats metapaths saved with newlines for neatness.
+    String template with placeholder intervals. Also replaces newlines with
+    spaces to re-format metapath patterns saved with newlines for neatness.
     '''
 
     template = template.replace('\n', ' ')
     return template.format(**kwargs)
-
