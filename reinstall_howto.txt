@@ -1,0 +1,5 @@
+to rebuild, delete info dir cache dir, .pth and finder.py
+
+Then, in terminal, run
+
+pip install -e . --use-pep517 --no-build-isolation -t <target_directory>

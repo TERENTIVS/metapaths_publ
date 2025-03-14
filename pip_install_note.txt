@@ -1,0 +1,13 @@
+to rebuild, delete info dir cache dir, .pth and finder.py
+
+Then, in terminal, run
+
+pip install -e metapaths --use-pep517 -t <target_directory>
+
+For TSA dir
+
+pip install -e metapaths --use-pep517 
+
+Optional target dir:
+
+-t "/Users/terenceegbelo/Documents/PhD/Git/kg_sheffield/experiments/metapath_counts/TSA chapter 1/.venv_metapaths/lib/python3.10/site-packages"
