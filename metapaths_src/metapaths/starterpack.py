@@ -101,7 +101,8 @@ def cypher_triple_to_list(triples: list, directed=True):
             rel_w = [node1, f'-{relationship}-', node2]  # western
             rel_e = [node2, f'-{relationship}-', node1]  # eastern
 
-        formatted_triples.append(rel_w, rel_e)
+        formatted_triples.append(rel_w)
+        formatted_triples.append(rel_e)
 
     return formatted_triples
 
