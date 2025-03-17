@@ -79,32 +79,6 @@ rel_data_to_get = [
 ]
 
 
-def add_unseen_node_freq(graph, nodes, node_id_field,
-                         nodes_freqs, rel_type):
-
-    node_freq_query = f'''
-                MATCH (n)-[rel]-()
-                WHERE n.{node_id_field} = $node AND type(rel) = $rel
-                RETURN COUNT(rel)
-                '''
-    for node in nodes:
-
-        if node not in nodes_freqs:
-
-            nodes_freqs[node] = {rel_type: graph.run(
-                          node_freq_query,
-                          node=node_id_field,
-                          rel=rel_type).evaluate()
-            }
-
-        elif rel_type not in nodes_freqs[node]:
-
-            nodes_freqs[node][rel_type] = graph.run(
-                          node_freq_query,
-                          node=node_id_field,
-                          rel=rel_type).evaluate()
-
-
 class INFToolbox:
 
     def __init__(self, graph: Graph, query_templates: dict):
@@ -162,12 +136,40 @@ class INFToolbox:
 
         return self.rel_type_counts, self.rel_type_counts_reindexed
 
+    def add_unseen_node_freq(self, nodes, node_id_field,
+                             nodes_freqs, rel_type):
+
+        node_freq_query = f'''
+                    MATCH (n)-[rel]-()
+                    WHERE n.{node_id_field} = $node_id AND type(rel) = $rel
+                    RETURN COUNT(rel)
+                    '''
+        for node in nodes:
+
+            if node not in nodes_freqs:
+
+                nodes_freqs[node] = {rel_type: self.graph.run(
+                            node_freq_query,
+                            node_id=node,
+                            rel=rel_type).evaluate()
+                }
+
+            elif rel_type not in nodes_freqs[node]:
+
+                nodes_freqs[node][rel_type] = self.graph.run(
+                            node_freq_query,
+                            node_id=node,
+                            rel=rel_type).evaluate()
+
+        return nodes_freqs
+
     def get_nodes_freq_dict(self, node_id_field: str,
                             reltype_counts: pd.DataFrame,
                             start_node_idx: int = None,
                             end_node_idx: int = None):
 
-        '''Return dictionary of the graph nodes' relation-specific degrees.
+        '''Return dictionary of the all nodes' relation-specific degrees.
+        Not added as attrib by default as may be large.
 
         Args:
         node_id_field: the node property used as identifier.
@@ -179,9 +181,9 @@ class INFToolbox:
 
         nodes_df = pd.DataFrame(self.graph.run(nodes_query).data())
 
-        nodes_docf = {node: {} for node in nodes_df[f"n.{node_id_field}"].iloc[
-                                                                start_node_idx:
-                                                                end_node_idx]}
+        nodes_freqs = {node: {} for node in
+                       nodes_df[f"n.{node_id_field}"].iloc[start_node_idx:
+                                                           end_node_idx]}
 
         node_freq_query = f'''
                         MATCH (n)-[rel]-()
@@ -192,18 +194,16 @@ class INFToolbox:
         # any node type will typically be heads-only (all out-degree) or
         # tails-only (all in-degree)
 
-        for node_id in tqdm(nodes_docf, total=len(nodes_docf)):
+        for node_id in tqdm(nodes_freqs, total=len(nodes_freqs)):
 
             for rel_type in reltype_counts['Relation_type']:
 
-                nodes_docf[node_id][rel_type] = self.graph.run(
+                nodes_freqs[node_id][rel_type] = self.graph.run(
                     node_freq_query,
                     node=node_id,
                     rel=rel_type).evaluate()
 
-        self.nodes_docf = nodes_docf
-        
-        return self.nodes_docf
+        return nodes_freqs
 
     def get_inf_dict_save(self, target_pairs: pd.DataFrame,
                           head_type: str, tail_type: str,
@@ -255,11 +255,11 @@ class INFToolbox:
 
         if on_demand_node_freqs is True:
 
-            # initialise rel-specific deg lookup
+            # initialise rel-specific deg lookup; expose as attrib
             nodes_freqs = {}
+            self.nodes_freqs = nodes_freqs
 
         else:
-            
             # use precomputed lookup
             nodes_freqs = node_freqs_lookup
 
@@ -278,7 +278,8 @@ class INFToolbox:
 
             rels = ['r' + str(rel_idx+1) for rel_idx in range((path_length))]
 
-            for _, row in tqdm(target_pairs.iterrows()):
+            for _, row in tqdm(target_pairs.iterrows(), 
+                               total=len(target_pairs)):
 
                 target_pair_name = row['PairID']
 
@@ -325,14 +326,16 @@ class INFToolbox:
 
                             # add rel-specific degs of any unseen nodes at this
                             # rel in the returned metapath instances
-                            add_unseen_node_freq(self.graph,
-                                                 rel_nodes,
-                                                 node_id_field_,
-                                                 nodes_freqs, rel_name)
+                            nodes_freqs = self.add_unseen_node_freq(
+                                                      rel_nodes,
+                                                      node_id_field_,
+                                                      nodes_freqs, rel_name)
+
+                            self.nodes_freqs = nodes_freqs  # Update attrib
 
                         # degs of nodes for this rel
                         rel_nodes_freqs = [nodes_freqs[rel_node][rel_name]
-                                            for rel_node in rel_nodes]
+                                           for rel_node in rel_nodes]
 
                         # compute INF for nodes in rel
                         rel_nodes_inf = [np.log10(
@@ -465,7 +468,7 @@ class INFToolbox:
                      on_demand_node_freqs: bool = True,
                      node_freqs_lookup: dict = None,
                      save_inf_dict=False, save_str=None):
-   
+
         '''
         Apply INF transformation according to the specified parameter
         combinations. Returns dict of (param_combo_idx, transformed_data)
