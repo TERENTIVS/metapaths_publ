@@ -207,8 +207,9 @@ class INFToolbox:
                           head_type: str, tail_type: str,
                           metapath_feats: list,
                           node_id_field_: str,
-                          reltype_counts: dict,
                           reltype_counts_reindexed: dict,
+                          on_demand_node_freqs: bool = True,
+                          node_freqs_lookup: dict = None,
                           save=False, save_str=None):
 
         '''
@@ -223,18 +224,24 @@ class INFToolbox:
         Args:
         target_pairs: DataFrame with a row for every head-tail pair,
         containing at least the head and tail ID columns.
-        head_type: name of head nodes' ID column.
-        tail_type: name of tail nodes' ID column.
+        head_type: name of head nodes' ID column
+        (e.g. 'HEAD' or the node label).
+        tail_type: name of tail nodes' ID column
+        (e.g. 'TAIL' or the node label).
         metapath_feats: list of metapath features as formatted using
         metapath_featset_gen().
-        nodes_freq: per-relation node degress as computed by
-        get_nodes_freq_dict().
-        reltype_counts: relation instance counts as computed by
-        get_reltype_counts.
+        node_id_field: Neo4j node property used as unique ID.
+        reltype_counts_reindexed: output 1 from get_reltype_counts(). Required
+        in INF calculation.
+        on_demand_node_freqs: whether to compute per-relation degrees
+        on demand; leave as True if node_freqs_lookup hasn't been computed in
+        advance using get_nodes_freq_dict(). Otherwise set to False and provide
+        node_freqs_lookup.
+
         If save=True, uses save_pickle() to save to specified
         destination.
 
-        Returns nested dict with key tree structure
+        Returns nested dict with key hierarchy
         metapathfeature->nodepair->inf_data
         '''
 
@@ -244,8 +251,10 @@ class INFToolbox:
 
         target_pairs_inf = {feat: {} for feat in metapath_feats}
 
-        # initialise rel-specific deg lookup here
-        nodes_freqs = {}
+        if on_demand_node_freqs is True:
+
+            # initialise rel-specific deg lookup
+            nodes_freqs = {}
 
         for feat in metapath_feats:
 
@@ -305,15 +314,20 @@ class INFToolbox:
 
                         rel_nodes = rel_heads | rel_tails
 
-                        add_unseen_node_freq(self.graph,
-                                             rel_nodes,
-                                             node_id_field_,
-                                             nodes_freqs, rel_name)
+                        if on_demand_node_freqs is True:
+
+                            # add rel-specific degs of any unseen nodes at this
+                            # rel in the returned metapath instances
+                            add_unseen_node_freq(self.graph,
+                                                 rel_nodes,
+                                                 node_id_field_,
+                                                 nodes_freqs, rel_name)
 
                         # degs of head nodes for this rel
                         rel_heads_node_f = [nodes_freqs[rel_head][rel_name]
                                             for rel_head in rel_heads]
 
+                        # compute INF for head nodes
                         rel_heads_inf = [np.log10(
                                             (reltype_counts_reindexed[
                                                 rel_name].values /
@@ -323,11 +337,11 @@ class INFToolbox:
                                          in rel_heads_node_f]
                         # use .values to avoid returning an array
 
-
                         # degs of tail nodes for this rel
                         rel_tails_node_f = [nodes_freqs[rel_tail][rel_name]
                                             for rel_tail in rel_tails]
 
+                        # compute INF for tail nodes
                         rel_tails_inf = [np.log10(
                                             (reltype_counts_reindexed[
                                                 rel_name].values /
@@ -335,6 +349,7 @@ class INFToolbox:
                                          for rel_tail_node_f
                                          in rel_tails_node_f]
 
+                        # Pool INF values for this rel
                         target_pairs_inf[feat][target_pair_name][
                             f'{rel}_min_Inf'] = np.min(rel_heads_inf +
                                                        rel_tails_inf)
@@ -347,13 +362,12 @@ class INFToolbox:
                             f'{rel}_mean_Inf'] = np.mean(rel_heads_inf +
                                                          rel_tails_inf)
 
-            if save:
-                try:
-                    save_pickle(target_pairs_inf, save_str)
-                    print(f'Saved INF data for feature {feat}')
+        if save:
+            try:
+                save_pickle(target_pairs_inf, save_str)
 
-                except TypeError:
-                    raise TypeError('Ensure appropriate save_str is passed')
+            except TypeError:
+                raise TypeError('Ensure appropriate save_str is passed')
 
         return target_pairs_inf
 
@@ -453,44 +467,49 @@ class INFToolbox:
     def run_pipeline(self, target_pairs: pd.DataFrame,
                      head_type: str, tail_type: str,
                      metapath_feats: list,
-                     node_id_field_: str, 
-                     reltype_counts: dict,
+                     node_id_field_: str,
                      reltype_counts_reindexed: dict,
                      param_combos: list,
-                     save=False, save_str=None):
-
+                     on_demand_node_freqs: bool = True,
+                     node_freqs_lookup: dict = None,
+                     save_inf_dict=False, save_str=None):
+   
         '''
         Apply INF transformation according to the specified parameter
         combinations. Returns dict of (param_combo_idx, transformed_data)
         key-value pairs.
 
-        Args passed to internal get_inf_dict_save() call:
+        Per-relation node degree policy is set on-demand as per default in
+        get_inf_dict_save().
+
+        Other args passed to internal get_inf_dict_save() call:
         target_pairs;
         head_type;
         tail_type;
         metapath_feats;
-        nodes_freq;
-        reltype_counts;
-        save;
+        node_id_field;
+        reltype_counts_reindexed;
+        save_inf_dict;
         save_str.
 
         Other args:
-        param_combos: list of dicts with format
-        [{'path_deflator_exp': float,
-        'inf_inflator': {'sum','product'},
-        'inf_pooling': {'min','max','mean'}}].
+        param_combos: list of parameter combinations; each is a dict with
+        format {'path_deflator_exp': float,
+                'inf_inflator': {'sum','product'},
+                'inf_pooling': {'min','max','mean'}}.
 
         Returns dict of (parameter_combination, INF-transformed
-        metapaths) key-value pairs.
+        metapath feature matrix as pd.DataFrame) key-value pairs.
         '''
 
         computed_inf_dict = self.get_inf_dict_save(target_pairs,
                                                    head_type, tail_type,
                                                    metapath_feats,
                                                    node_id_field_,
-                                                   reltype_counts,
                                                    reltype_counts_reindexed,
-                                                   save, save_str)
+                                                   on_demand_node_freqs,
+                                                   node_freqs_lookup,
+                                                   save_inf_dict, save_str)
 
         feat_dfs = self.extract_feat_dfs(computed_inf_dict)
 

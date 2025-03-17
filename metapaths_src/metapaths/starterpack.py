@@ -7,6 +7,7 @@ import socket
 def save_pickle(var_, loc_str):
     with open(loc_str, 'wb') as file:
         pickle.dump(var_, file)
+        print(f'Variable {var_} saved.')
 
 
 def load_pickle(loc_str):
