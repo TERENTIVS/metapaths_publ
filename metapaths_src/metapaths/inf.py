@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-import itertools
 from py2neo import Graph
 import socket
 from .starterpack import save_pickle
@@ -259,8 +258,13 @@ class INFToolbox:
             nodes_freqs = {}
             self.nodes_freqs = nodes_freqs
 
+        elif node_freqs_lookup is None:
+
+            raise ValueError(
+                'Node freqs lookup required if on_demand_node_freqs=True')
+
         else:
-            # use precomputed lookup
+
             nodes_freqs = node_freqs_lookup
 
         for feat in metapath_feats:
@@ -278,7 +282,7 @@ class INFToolbox:
 
             rels = ['r' + str(rel_idx+1) for rel_idx in range((path_length))]
 
-            for _, row in tqdm(target_pairs.iterrows(), 
+            for _, row in tqdm(target_pairs.iterrows(),
                                total=len(target_pairs)):
 
                 target_pair_name = row['PairID']
@@ -484,6 +488,8 @@ class INFToolbox:
         metapath_feats;
         node_id_field;
         reltype_counts_reindexed;
+        on_demand_node_freqs;
+        node_freqs_lookup;
         save_inf_dict;
         save_str.
 
