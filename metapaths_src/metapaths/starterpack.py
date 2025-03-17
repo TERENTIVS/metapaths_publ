@@ -7,7 +7,6 @@ import socket
 def save_pickle(var_, loc_str):
     with open(loc_str, 'wb') as file:
         pickle.dump(var_, file)
-        print(f'Variable {var_} saved.')
 
 
 def load_pickle(loc_str):
@@ -35,12 +34,12 @@ def check_graph_connection(host, port):
 def cypher_triple_to_list(triples: list, directed=True):
     '''
     Converts a Cypher triple string to a list of strings
-    representing the triple's head, relation, tail sequence for directed 
+    representing the triple's head, relation, tail sequence for directed
     relationships, or the unordered sequence of entity, relation, entity
     for undirected relationships.
 
-    This formatting is required for exhaustive metapath Cypher pattern 
-    generation from available triples using metapath_gen() and 
+    This formatting is required for exhaustive metapath Cypher pattern
+    generation from available triples using metapath_gen() and
     metapath_featset_gen().
 
     Args:
@@ -49,12 +48,12 @@ def cypher_triple_to_list(triples: list, directed=True):
                     "(:Film)-[:Released_in]->(:Year)",
                     "(:Film)-[:Features]->(:Song)"
                     ]
-    
+
     directed: specify if the formatting should add the ">"
     character to indicate a directed relationship.
 
     Returns:
-    A list of lists, where each inner list represents a 
+    A list of lists, where each inner list represents a
     formatted triple type e.g.:
     [
     ["(:Film)", "-[:Released_in]->", "(:Year)"],
@@ -94,13 +93,15 @@ def cypher_triple_to_list(triples: list, directed=True):
 
         if directed:
 
-            relationship = f"-{relationship}->"
+            rel_w = [node1, f'-{relationship}->', node2]  # western
+            rel_e = [node2, f'<-{relationship}-', node1]  # eastern
 
         else:
 
-            relationship = f"-{relationship}-"
+            rel_w = [node1, f'-{relationship}-', node2]  # western
+            rel_e = [node2, f'-{relationship}-', node1]  # eastern
 
-        formatted_triples.append([node1, relationship, node2])
+        formatted_triples.append(rel_w, rel_e)
 
     return formatted_triples
 
@@ -244,10 +245,9 @@ def find_highest_rel(metapath: str, rel_prefix):
 def create_fstr_from_template(template, **kwargs):
 
     '''
-    Creates metapath Cypher queries from templates formatted with newline chars 
+    Creates metapath Cypher queries from templates formatted with newline chars
     e.g. re-formats metapaths saved with newlines for neatness.
     '''
 
     template = template.replace('\n', ' ')
     return template.format(**kwargs)
-

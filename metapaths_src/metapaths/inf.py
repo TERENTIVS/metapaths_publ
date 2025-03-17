@@ -32,11 +32,11 @@ n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([n_source.{node_id_field}, n_1.{node_id_field}]) 
+collect([n_source.{node_id_field}, n_1.{node_id_field}])
 AS r1_pairs, type(r1) AS r1,
-collect([n_1.{node_id_field}, n_2.{node_id_field}]) 
+collect([n_1.{node_id_field}, n_2.{node_id_field}])
 AS r2_pairs, type(r2) AS r2,
-collect([n_2.{node_id_field}, n_target.{node_id_field}]) 
+collect([n_2.{node_id_field}, n_target.{node_id_field}])
 AS r3_pairs, type(r3) AS r3
 RETURN
 metapath_count,
@@ -51,13 +51,13 @@ n_target.{node_id_field} = $tail
 AND apoc.coll.duplicates(NODES(path)) = []
 WITH
 COUNT(path) AS metapath_count,
-collect([n_source.{node_id_field}, n_1.{node_id_field}]) 
+collect([n_source.{node_id_field}, n_1.{node_id_field}])
 AS r1_pairs, type(r1) AS r1,
-collect([n_1.{node_id_field}, n_2.{node_id_field}]) 
+collect([n_1.{node_id_field}, n_2.{node_id_field}])
 AS r2_pairs, type(r2) AS r2,
-collect([n_2.{node_id_field}, n_3.{node_id_field}]) 
+collect([n_2.{node_id_field}, n_3.{node_id_field}])
 AS r3_pairs, type(r3) AS r3,
-collect([n_3.{node_id_field}, n_target.{node_id_field}]) 
+collect([n_3.{node_id_field}, n_target.{node_id_field}])
 AS r4_pairs, type(r4) AS r4
 RETURN
 metapath_count,
@@ -261,7 +261,7 @@ class INFToolbox:
         elif node_freqs_lookup is None:
 
             raise ValueError(
-                'Node freqs lookup required if on_demand_node_freqs=True')
+                'Node freqs lookup required if on_demand_node_freqs=False')
 
         else:
 
