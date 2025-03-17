@@ -148,7 +148,7 @@ class INFToolbox:
         RETURN DISTINCT(type(rel)), COUNT(rel)
         '''
 
-        rel_type_counts = pd.DataFrame(
+        self.rel_type_counts = pd.DataFrame(
             self.graph.run(
                 rel_type_instances_query
                 )
@@ -157,10 +157,10 @@ class INFToolbox:
                                 1: 'Count'}
                     )
 
-        rel_type_counts_reindexed = rel_type_counts.set_index(
+        self.rel_type_counts_reindexed = self.rel_type_counts.set_index(
                                             'Relation_type').transpose()
 
-        return rel_type_counts, rel_type_counts_reindexed
+        return self.rel_type_counts, self.rel_type_counts_reindexed
 
     def get_nodes_freq_dict(self, node_id_field: str,
                             reltype_counts: pd.DataFrame,
@@ -201,7 +201,9 @@ class INFToolbox:
                     node=node_id,
                     rel=rel_type).evaluate()
 
-        return nodes_docf
+        self.nodes_docf = nodes_docf
+        
+        return self.nodes_docf
 
     def get_inf_dict_save(self, target_pairs: pd.DataFrame,
                           head_type: str, tail_type: str,
@@ -255,6 +257,11 @@ class INFToolbox:
 
             # initialise rel-specific deg lookup
             nodes_freqs = {}
+
+        else:
+            
+            # use precomputed lookup
+            nodes_freqs = node_freqs_lookup
 
         for feat in metapath_feats:
 
@@ -323,44 +330,29 @@ class INFToolbox:
                                                  node_id_field_,
                                                  nodes_freqs, rel_name)
 
-                        # degs of head nodes for this rel
-                        rel_heads_node_f = [nodes_freqs[rel_head][rel_name]
-                                            for rel_head in rel_heads]
+                        # degs of nodes for this rel
+                        rel_nodes_freqs = [nodes_freqs[rel_node][rel_name]
+                                            for rel_node in rel_nodes]
 
-                        # compute INF for head nodes
-                        rel_heads_inf = [np.log10(
+                        # compute INF for nodes in rel
+                        rel_nodes_inf = [np.log10(
                                             (reltype_counts_reindexed[
                                                 rel_name].values /
-                                                rel_head_node_f)
+                                                rel_node_freq)
                                                 )
-                                         for rel_head_node_f
-                                         in rel_heads_node_f]
+                                         for rel_node_freq
+                                         in rel_nodes_freqs]
                         # use .values to avoid returning an array
-
-                        # degs of tail nodes for this rel
-                        rel_tails_node_f = [nodes_freqs[rel_tail][rel_name]
-                                            for rel_tail in rel_tails]
-
-                        # compute INF for tail nodes
-                        rel_tails_inf = [np.log10(
-                                            (reltype_counts_reindexed[
-                                                rel_name].values /
-                                                rel_tail_node_f))
-                                         for rel_tail_node_f
-                                         in rel_tails_node_f]
 
                         # Pool INF values for this rel
                         target_pairs_inf[feat][target_pair_name][
-                            f'{rel}_min_Inf'] = np.min(rel_heads_inf +
-                                                       rel_tails_inf)
+                            f'{rel}_min_Inf'] = np.min(rel_nodes_inf)
 
                         target_pairs_inf[feat][target_pair_name][
-                            f'{rel}_max_Inf'] = np.max(rel_heads_inf +
-                                                       rel_tails_inf)
+                            f'{rel}_max_Inf'] = np.max(rel_nodes_inf)
 
                         target_pairs_inf[feat][target_pair_name][
-                            f'{rel}_mean_Inf'] = np.mean(rel_heads_inf +
-                                                         rel_tails_inf)
+                            f'{rel}_mean_Inf'] = np.mean(rel_nodes_inf)
 
         if save:
             try:
