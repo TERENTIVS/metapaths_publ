@@ -422,8 +422,8 @@ class INFToolbox:
         param_combo: INF parameterisation. Each parameter combination is a
         dict with format
 
-        {'path_deflator_exp': float,
-         'inf_inflator': {'sum','product'},
+        {'path_deflator_exp': {float, int, None},
+         'inf_inflator': {'sum','product', None},
          'inf_pooling': {'min','max','mean'}}.
 
         See readme for details.
