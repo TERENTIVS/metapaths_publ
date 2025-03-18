@@ -31,16 +31,16 @@ def check_graph_connection(host, port):
         return False
 
 
-def cypher_triple_to_list(triples: list, directed=True):
-
+def cypher_triple_to_list(triples: list):
     '''
     Converts a Cypher triple string to a list of strings
-    representing the triple's head, relation, tail sequence for directed
-    relationships, or the unordered sequence of entity, relation, entity
-    for undirected relationships.
+    representing the triple's head, relation, tail sequence following
+    the relationship direction assigned in Neo4j. Generates a "western"
+    left-to-right sequence as well as an "eastern" right-to-left
+    sequence for each triple.
 
-    This formatting is required for exhaustive metapath Cypher pattern
-    generation from available triples using metapath_gen() and
+    This formatting step is required for exhaustive metapath Cypher
+    pattern generation from available triples using metapath_gen() and
     metapath_featset_gen().
 
     Args:
@@ -92,15 +92,11 @@ def cypher_triple_to_list(triples: list, directed=True):
 
         node1, relationship, node2 = triple_trimmed
 
-        if directed:
+        rel_w = [node1, f'-{relationship}->', node2]  # western
+        rel_e = [node2, f'<-{relationship}-', node1]  # eastern
 
-            relationship = f"-{relationship}->"
-
-        else:
-
-            relationship = f"-{relationship}-"
-
-        formatted_triples.append([node1, relationship, node2])
+        formatted_triples.append(rel_w)
+        formatted_triples.append(rel_e)
 
     return formatted_triples
 
@@ -244,8 +240,8 @@ def find_highest_rel(metapath: str, rel_prefix):
 def create_fstr_from_template(template, **kwargs):
 
     '''
-    String template with placeholder intervals. Also replaces newlines with
-    spaces to re-format metapath patterns saved with newlines for neatness.
+    Creates metapath Cypher queries from templates formatted with newline chars
+    e.g. re-formats metapaths saved with newlines for neatness.
     '''
 
     template = template.replace('\n', ' ')
