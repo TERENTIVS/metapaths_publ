@@ -113,8 +113,12 @@ class INFToolbox:
     def get_reltype_counts(self):
 
         '''
-        Counts instances of relation types in the graph.
-        Undirected edges are counted once.'''
+        Counts instances of relation types (i.e. the actual edges
+        in the graph). Each edge is counted once.
+        If looking to count any edges twice (e.g. as a way of
+        representing non-directionality), consider using distinct
+        rel labels e.g. use node type concatenations ("ntype1_ntype2" /
+        "ntype2_ntype1") or add suffixes "_fwd" / "_rev" if same node type.'''
 
         rel_type_instances_query = '''
         MATCH ()-[rel]->()
@@ -135,8 +139,68 @@ class INFToolbox:
 
         return self.rel_type_counts, self.rel_type_counts_reindexed
 
-    def add_unseen_node_freq(self, nodes, node_id_field,
-                             nodes_freqs, rel_type):
+    def get_nodes_freq_dict(self, node_id_field: str,
+                            reltype_counts: pd.DataFrame,
+                            node_subset: list = None):
+
+        '''Return dictionary of all nodes' relation-specific degrees.
+        Collects both out-degree and in-degree for relation types in which
+        a node can feature as head in some triples and as tail in others.
+
+        Consider sub-dividing such relation types into exclusive head-only
+        and tail-only labels for more precise semantics.
+
+        Args:
+        node_id_field: the node property used as identifier.
+        reltype_counts: output with index 0 from get_reltype_counts()
+        node_subset: specify node IDs if wishing to extract relation-
+        specific degrees for a subset of nodes e.g. during EDA.
+        '''
+
+        nodes_query = f"MATCH (n) RETURN n.{node_id_field}"
+
+        nodes_df = pd.DataFrame(self.graph.run(nodes_query).data())
+
+        nodes_freqs = {node: {} for node in
+                       nodes_df[f"n.{node_id_field}"].loc[
+                       nodes_df[f"n.{node_id_field}"].isin(node_subset)]
+                       }
+
+        node_freq_query = f'''
+                        MATCH (n)-[rel]-()
+                        WHERE n.{node_id_field} = $node AND type(rel) = $rel
+                        RETURN COUNT(rel)
+                        '''
+
+        for node_id in tqdm(nodes_freqs, total=len(nodes_freqs)):
+
+            for rel_type in reltype_counts['Relation_type']:
+
+                nodes_freqs[node_id][rel_type] = self.graph.run(
+                    node_freq_query,
+                    node=node_id,
+                    rel=rel_type).evaluate()
+
+        return nodes_freqs
+
+    def add_unseen_node_freq(self, nodes: set, node_id_field: str,
+                             nodes_freqs: dict, rel_type: str):
+
+        '''Add relation-specific degrees not yet recorded.
+        Used by get_inf_dict_save() if computing relation-specific degrees
+        on-demand during INF data computation (i.e. if no nodes_freqs lookup
+        is available).
+
+        Args:
+        nodes: new nodes encountered at this relation across the collected
+        metapath instances; their relation-specific degrees are required in
+        computing INF data.
+        node_id_field: Neo4j node property used as unique ID.
+        nodes_freqs: internal dict being updated dynamically with the
+        relation-specific degrees of nodes encountered at each relation
+        across the metapath instances.
+        rel_type: the relationship for which degrees are being added.
+        '''
 
         node_freq_query = f'''
                     MATCH (n)-[rel]-()
@@ -162,48 +226,6 @@ class INFToolbox:
 
         return nodes_freqs
 
-    def get_nodes_freq_dict(self, node_id_field: str,
-                            reltype_counts: pd.DataFrame,
-                            start_node_idx: int = None,
-                            end_node_idx: int = None):
-
-        '''Return dictionary of the all nodes' relation-specific degrees.
-        Not added as attrib by default as may be large.
-
-        Args:
-        node_id_field: the node property used as identifier.
-        reltype_counts: output with index 0 from get_reltype_counts()
-        start_ and end_node_idx: for use in testing on subset of nodes.
-        '''
-
-        nodes_query = f"MATCH (n) RETURN n.{node_id_field}"
-
-        nodes_df = pd.DataFrame(self.graph.run(nodes_query).data())
-
-        nodes_freqs = {node: {} for node in
-                       nodes_df[f"n.{node_id_field}"].iloc[start_node_idx:
-                                                           end_node_idx]}
-
-        node_freq_query = f'''
-                        MATCH (n)-[rel]-()
-                        WHERE n.{node_id_field} = $node AND type(rel) = $rel
-                        RETURN COUNT(rel)
-                        '''
-        # not making a distinction between out-degree and in-degree as
-        # any node type will typically be heads-only (all out-degree) or
-        # tails-only (all in-degree)
-
-        for node_id in tqdm(nodes_freqs, total=len(nodes_freqs)):
-
-            for rel_type in reltype_counts['Relation_type']:
-
-                nodes_freqs[node_id][rel_type] = self.graph.run(
-                    node_freq_query,
-                    node=node_id,
-                    rel=rel_type).evaluate()
-
-        return nodes_freqs
-
     def get_inf_dict_save(self, target_pairs: pd.DataFrame,
                           head_type: str, tail_type: str,
                           metapath_feats: list,
@@ -214,20 +236,19 @@ class INFToolbox:
                           save=False, save_str=None):
 
         '''
-        Extracts each metapath feature's Inverse Node Frequencies as pooled
-        (min, max, mean) at each metapath relation type, for specified
+        Extracts each metapath feature's pooled (min, max, mean)
+        Inverse Node Frequencies at each metapath relation type, for specified
         head-tail pairs representing the KG triple set of interest.
-        Also records the number of unique nodes at each relation type in the
-        metapath feature's instances.
+        Refer to readme for more conceptual details.
 
         Requires apoc extension for Neo4j.
 
         Args:
         target_pairs: DataFrame with a row for every head-tail pair,
         containing at least the head and tail ID columns.
-        head_type: name of head nodes' ID column
+        head_type: name of head nodes' ID column e.g. the heads' node type.
         (e.g. 'HEAD' or the node label).
-        tail_type: name of tail nodes' ID column
+        tail_type: name of tail nodes' ID column.
         (e.g. 'TAIL' or the node label).
         metapath_feats: list of metapath features as formatted using
         metapath_featset_gen().
@@ -373,9 +394,12 @@ class INFToolbox:
     def extract_feat_dfs(self, inf_dict):
 
         '''Extract a pandas DataFrame for each metapath feature, containing
-        the data computed by get_inf_dict_save().
+        the INF data computed by get_inf_dict_save().
         Rows of the DataFrame correspond to the head-tail pairs and columns
-        indicate the metapath feature's data.'''
+        indicate the metapath feature's data.
+
+        For internal use by apply_params_to_feats(); exposed as class
+        method for EDA.'''
 
         feat_dfs = {}
 
@@ -387,14 +411,40 @@ class INFToolbox:
 
         return feat_dfs  # dictionary of dataframes
 
-    def apply_params_to_feats(self, feat_dfs, **param_combo):
+    def apply_params_to_feats(self, inf_dict: dict, **param_combo):
 
         '''Apply INF parameterisation to metapath feature data as extracted by
-        extract_feat_dfs().
-        Returns a DataFrame with structure
+        get_inf_dict_save().
+
+        Args:
+
+        inf_dict: INF data outputted by get_inf_dict_save().
+        param_combo: INF parameterisation. Each parameter combination is a
+        dict with format
+
+        {'path_deflator_exp': float,
+         'inf_inflator': {'sum','product'},
+         'inf_pooling': {'min','max','mean'}}.
+
+        See readme for details.
+
+        Returns a DataFrame with dimensions
         head-tail pairs * transformed features.'''
 
-        def apply_params_to_feat(feat_df, rels, **param_combo):
+        def apply_params_to_feat(feat_df: pd.DataFrame, rels: list,
+                                 **param_combo):
+
+            '''Internal function applying the INF parameterisation to
+            each metapath feature's INF data as stored in the output
+            of extract_feats_dfs().
+
+            Args:
+
+            feat_df: a value from a feat_dfs dict produced by
+            extract_feats_dfs().
+            rels: list of rel labels as appearing in the metapath
+            Cypher patterns e.g. ['r1','r2'].
+            '''
 
             path_count = feat_df['metapath_count']
 
@@ -442,6 +492,8 @@ class INFToolbox:
 
         transformed_features = {}
 
+        feat_dfs = self.extract_feat_dfs(inf_dict)
+
         for feat, feat_df in tqdm(feat_dfs.items()):
 
             path_length = find_highest_rel(feat, 'r')
@@ -459,7 +511,12 @@ class INFToolbox:
     def add_param_combos(self, param_combos: list):
 
         '''Save parameter combinations to the toolbox. Use list with single
-        element if adding a single parameter combination.'''
+        element if adding a single parameter combination.
+
+        Args:
+
+        param_combos: parameter combinations in the the format specified
+        by apply_params_to_feats().'''
 
         self._param_combos.extend(param_combos)
 
@@ -478,10 +535,10 @@ class INFToolbox:
         combinations. Returns dict of (param_combo_idx, transformed_data)
         key-value pairs.
 
-        Per-relation node degree policy is set on-demand as per default in
-        get_inf_dict_save().
+        Per-relation node degree policy is set to on-demand as per default
+        in get_inf_dict_save().
 
-        Other args passed to internal get_inf_dict_save() call:
+        Other args passed to the internal get_inf_dict_save() call:
         target_pairs;
         head_type;
         tail_type;
@@ -493,33 +550,65 @@ class INFToolbox:
         save_inf_dict;
         save_str.
 
-        Other args:
-        param_combos: list of parameter combinations; each is a dict with
-        format {'path_deflator_exp': float,
-                'inf_inflator': {'sum','product'},
-                'inf_pooling': {'min','max','mean'}}.
+        Other pipeline args:
+        param_combos: list of parameter combinations to apply to arrive at
+        final INF-transformed metapath features. Each combination is a dict
+        with format
+
+        {'path_deflator_exp': float,
+         'inf_inflator': {'sum','product'},
+         'inf_pooling': {'min','max','mean'}}.
 
         Returns dict of (parameter_combination, INF-transformed
         metapath feature matrix as pd.DataFrame) key-value pairs.
         '''
 
-        computed_inf_dict = self.get_inf_dict_save(target_pairs,
-                                                   head_type, tail_type,
-                                                   metapath_feats,
-                                                   node_id_field_,
-                                                   reltype_counts_reindexed,
-                                                   on_demand_node_freqs,
-                                                   node_freqs_lookup,
-                                                   save_inf_dict, save_str)
-
-        feat_dfs = self.extract_feat_dfs(computed_inf_dict)
+        # Store computed INF data as toolbox attribute to allow application
+        # of additional parameter combinations later
+        self.computed_inf_dict = self.get_inf_dict_save(
+                                                    target_pairs,
+                                                    head_type, tail_type,
+                                                    metapath_feats,
+                                                    node_id_field_,
+                                                    reltype_counts_reindexed,
+                                                    on_demand_node_freqs,
+                                                    node_freqs_lookup,
+                                                    save_inf_dict, save_str)
 
         transformed_data = {}
 
         for combo_idx, combo in enumerate(param_combos):
 
-            transformation = self.apply_params_to_feats(feat_dfs, **combo)
-
+            transformation = self.apply_params_to_feats(self.computed_inf_dict,
+                                                        **combo)
             transformed_data[combo_idx] = transformation
 
         return transformed_data
+
+    def restore_pair_node_id_cols(self, transformation: pd.DataFrame,
+                                  head_type: str, head_col_idx: int,
+                                  tail_type: str, tail_col_idx: int):
+
+        '''Re-add columns with head and tail node IDs to transformed metapath
+        features by splitting the PairID column used as index in the INF
+        pipeline.
+
+        Args:
+
+        transformation: a value from a transformed_data dict outputted by
+        apply_params_to_feats(); a DataFrame of INF-transformed features.
+        head_type: name of head nodes' ID column.
+        head_col_idx: desired position for the head node ID column.
+        tail_type: name of tail nodes' ID column.
+        tail_col_idx: desired position for the tail node ID column.'''
+
+        head_col = transformation.index.map(lambda x: x.split('_')[0])
+
+        tail_col = transformation.index.map(lambda x: x.split('_')[1])
+
+        transformation.insert(head_col_idx, head_type, head_col)
+
+        transformation.insert(tail_col_idx, tail_type, tail_col)
+
+        return transformation
+        # leaving index as is; use df.reset_index() to reset.
