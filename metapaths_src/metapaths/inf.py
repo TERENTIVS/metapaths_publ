@@ -448,7 +448,8 @@ class INFToolbox:
 
             path_count = feat_df['metapath_count']
 
-            if param_combo['path_deflator_exp'] is not None:
+            if 'path_deflator_exp' in param_combo and \
+                    param_combo['path_deflator_exp'] is not None:
 
                 exp = param_combo['path_deflator_exp']
 
@@ -460,7 +461,8 @@ class INFToolbox:
 
                     path_count = path_count ** exp
 
-            if param_combo['inf_inflator'] is not None:
+            if 'inf_inflator' in param_combo and \
+                    param_combo['inf_inflator'] is not None:
 
                 assert 'inf_pooling' in param_combo, \
                     "Pooling option ('min', 'max' or 'mean') required"
