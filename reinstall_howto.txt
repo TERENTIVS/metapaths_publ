@@ -1,3 +1,0 @@
-To rebuild, delete info dir cache dir, .pth and finder.py
-
-pip install -e "/Users/terenceegbelo/Documents/Git_own_src/metapaths_dev/metapaths_src/" --use-pep517

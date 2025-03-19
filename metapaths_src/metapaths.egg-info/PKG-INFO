@@ -1,8 +1,0 @@
-Metadata-Version: 2.2
-Name: metapaths
-Version: 1.0.0
-Requires-Dist: numpy~=1.23.5
-Requires-Dist: pandas~=1.5.3
-Requires-Dist: py2neo~=2021.2.3
-Requires-Dist: tqdm~=4.64.1
-Dynamic: requires-dist
