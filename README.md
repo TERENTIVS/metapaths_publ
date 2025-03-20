@@ -6,6 +6,9 @@
 
 See the Theory section further below for an introduction to path-based knowledge graph completion and for further details on the INF approach for bias correction implemented by `metapaths`.
 
+# Installation
+
+`pip install metapaths`
 
 # Description
 
