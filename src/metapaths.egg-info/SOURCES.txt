@@ -1,0 +1,12 @@
+LICENCE.txt
+README.md
+pyproject.toml
+setup.py
+metapaths/__init__.py
+metapaths/inf.py
+metapaths/starterpack.py
+metapaths.egg-info/PKG-INFO
+metapaths.egg-info/SOURCES.txt
+metapaths.egg-info/dependency_links.txt
+metapaths.egg-info/requires.txt
+metapaths.egg-info/top_level.txt

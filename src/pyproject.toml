@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=65.5.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metapaths"
+version = "1.0.1"
+authors = [
+  { name="Terence Egbelo", email="terence.egbelo@gmail.com" },
+]
+description = "Metapath-based, Neo4j-powered knowledge graph completion with novel topological bias control for better accuracy on low-degree nodes."
+readme = "README.md"
+url = "https://github.com/TERENTIVS/metapaths_publ"
+requires-python = ">=3.10.9"
+classifiers = [
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Programming Language :: Python :: 3.10'
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Information Technology',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        'Topic :: Scientific/Engineering :: Information Analysis'
+    ]
+license = { LICENCE.txt }
+
+[project.urls]
+Homepage = "https://github.com/TERENTIVS/metapaths_publ"
+Issues = "https://github.com/TERENTIVS/metapaths_publ/issues"

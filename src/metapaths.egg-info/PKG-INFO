@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: metapaths
+Version: 1.0.1
+Summary: Metapath-based, Neo4j-powered knowledge graph completion with novel topological bias control for better accuracy on low-degree nodes.
+Home-page: https://github.com/TERENTIVS/metapaths_publ
+Author: Terence Egbelo
+Author-email: terence.egbelo@gmail.com
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Information Technology
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+License-File: LICENCE.txt
+Requires-Dist: numpy~=1.23.5
+Requires-Dist: pandas~=1.5.3
+Requires-Dist: py2neo~=2021.2.3
+Requires-Dist: tqdm~=4.64.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
