@@ -201,7 +201,8 @@ class INFToolbox:
     def add_unseen_node_freq(self, nodes: set, node_id_field: str,
                              nodes_freqs: dict, rel_type: str):
 
-        '''Add relation-specific degrees not yet recorded.
+        '''
+        Add relation-specific degrees not yet recorded.
         Used by get_inf_dict_save() if computing relation-specific degrees
         on-demand during INF data computation (i.e. if no nodes_freqs lookup
         is available).
@@ -408,13 +409,15 @@ class INFToolbox:
 
     def extract_feat_dfs(self, inf_dict):
 
-        '''Extract a pandas DataFrame for each metapath feature, containing
+        '''
+        Extract a pandas DataFrame for each metapath feature, containing
         the INF data computed by get_inf_dict_save().
         Rows of the DataFrame correspond to the head-tail pairs and columns
         indicate the metapath feature's data.
 
         For internal use by apply_params_to_feats(); exposed as class
-        method for EDA.'''
+        method for EDA.
+        '''
 
         feat_dfs = {}
 
@@ -449,7 +452,8 @@ class INFToolbox:
         def apply_params_to_feat(feat_df: pd.DataFrame, rels: list,
                                  **param_combo):
 
-            '''Internal function applying the INF parameterisation to
+            '''
+            Internal function applying the INF parameterisation to
             each metapath feature's INF data as stored in the output
             of extract_feats_dfs().
 
@@ -527,13 +531,15 @@ class INFToolbox:
 
     def add_param_combos(self, param_combos: list):
 
-        '''Save parameter combinations to the toolbox. Use list with single
+        '''
+        Save parameter combinations to the toolbox. Use list with single
         element if adding a single parameter combination.
 
         Args:
 
         param_combos: parameter combinations in the the format specified
-        by apply_params_to_feats().'''
+        by apply_params_to_feats().
+        '''
 
         self.param_combos.extend(param_combos)
 
@@ -606,7 +612,8 @@ class INFToolbox:
                                   head_type: str, head_col_idx: int,
                                   tail_type: str, tail_col_idx: int):
 
-        '''Re-add columns with head and tail node IDs to transformed metapath
+        '''
+        Re-add columns with head and tail node IDs to transformed metapath
         features by splitting the PairID column used as index in the INF
         pipeline.
 
@@ -617,7 +624,8 @@ class INFToolbox:
         head_type: name of head nodes' ID column.
         head_col_idx: desired position for the head node ID column.
         tail_type: name of tail nodes' ID column.
-        tail_col_idx: desired position for the tail node ID column.'''
+        tail_col_idx: desired position for the tail node ID column.
+        '''
 
         head_col = transformation.index.map(lambda x: x.split('_')[0])
 

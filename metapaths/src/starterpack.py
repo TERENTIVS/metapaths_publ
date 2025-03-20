@@ -32,6 +32,7 @@ def check_graph_connection(host, port):
 
 
 def cypher_triple_to_list(triples: list):
+
     '''
     Converts a Cypher triple string to a list of strings
     representing the triple's head, relation, tail sequence following
@@ -49,9 +50,6 @@ def cypher_triple_to_list(triples: list):
                     "(:Film)-[:Released_in]->(:Year)",
                     "(:Film)-[:Features]->(:Song)"
                     ]
-
-    directed: specify if the formatting should add the ">"
-    character to indicate a directed relationship.
 
     Returns:
     A list of lists, where each inner list represents a
@@ -135,6 +133,7 @@ def add_rel_variables(pattern):
 
 
 def metapath_gen(source: str, target: str, triple_types: list, length: int):
+
     '''
     Generates all possible metapaths given source and target node types,
     available triple types to traverse and path length.
@@ -237,8 +236,15 @@ def metapath_featset_gen(source: str, target: str,
 
 def find_highest_rel(metapath: str, rel_prefix):
 
-    '''Requires metapath edges to have been assigned "r" + relation number"
-    names as formatted by metapath_gen() in the module "starterfuncs".'''
+    '''
+    Determines the length of a metapath by detecting the number in the
+    relationship variable of the last edge in the metapath's Cypher pattern.
+    This is required by metapaths.inf.INFToolbox.get_inf_dict_save() to deploy
+    the correct Cypher query for the metapath from query_templates_234.
+
+    Requires metapath edges to have been assigned "r" + relation number"
+    names e.g. as formatted by metapath_gen().
+    '''
 
     rel_tag = rf"{rel_prefix}(\d+)"  # Matches the prefix followed by 1+ digits
     matches = re.findall(rel_tag, metapath)
@@ -250,10 +256,8 @@ def find_highest_rel(metapath: str, rel_prefix):
 
 def create_fstr_from_template(template, **kwargs):
 
-    '''
-    Creates metapath Cypher queries from templates formatted with newline chars
-    e.g. re-formats metapaths saved with newlines for neatness.
-    '''
+    '''Creates metapath Cypher queries from templates formatted with newline
+    chars e.g. re-formats metapaths saved with newlines for neatness.'''
 
     template = template.replace('\n', ' ')
     return template.format(**kwargs)
