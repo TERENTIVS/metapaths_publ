@@ -1,8 +1,8 @@
-![Package name](../assets/logo.png)
+![Package name](assets/logo.png)
 
 # Summary
 
-`metapaths` is a Python package for extracting and transforming path-based features for use in knowledge graph (KG) completion. It implements a novel feature transformation procedure developed by the author to mitigate the common KG problem of topological bias, improving KG completion accuracy on low-degree nodes. This feature transformation approach achieves this by translating the information retrieval concept of Inverse Document Frequency to the graph context, as "Inverse Node Frequency" (INF).
+`metapaths` is a Python package for extracting and transforming path-based features for use in knowledge graph (KG) completion. It implements a novel feature transformation procedure developed by the author to mitigate the common KG problem of topological bias, thereby improving KG completion accuracy on low-degree nodes. The transformation procedure achieves this by translating the Information Retrieval concept of Inverse Document Frequency to the graph context, as "Inverse Node Frequency" (INF).
 
 See the Theory section further below for an introduction to path-based knowledge graph completion and for further details on the INF approach for bias correction implemented by `metapaths`.
 
@@ -26,9 +26,11 @@ Selected steps from `run_pipeline` are also available as class methods. One exam
 
 ## The `metapaths.starterpack` module
 
-This supporting module enables exhaustive metapath Cypher pattern generation from a list of Cypher KG triple patterns e.g. `["(:Film)-[:Released_in]->(:Year)", "(:Film)-[:Features]->(:Song)" ...]` and for formatting these patterns for consumption by `INFToolbox.run_pipeline` and other methods.
+This supporting module enables exhaustive metapath Cypher pattern generation from a list of Cypher KG triple patterns e.g. `["(:Film)-[:Released_in]->(:Year)", "(:Film)-[:Features]->(:Song)" ...]`. The generated patterns are ready for consumption by `INFToolbox.run_pipeline` and other methods.
 
-See `metapaths_reqs.txt` for the list of package dependencies.
+## Dependencies
+
+See `src/metapaths_reqs.txt` for the list of package dependencies.
 
 
 # Theory
@@ -47,11 +49,11 @@ Any KGC method that naively relies on the graph topology "as-is" will come to as
 
 The `metapaths` package implements feature extraction for classical metapath-based KGC (e.g. Sun et al 2011; Fu et al 2016; Himmelstein et al 2017). Metapath-based KGC frames the inference problem as a classification task where each head-relation-tail KG triple's features, in their raw form, are counts of distinct path types ("metapaths") that occur between the head and tail (see illustration below).
 
-![Package name](../assets/metapath_KGC.jpg)
+![Package name](assets/metapath_KGC.jpg)
 
 Metapath count features therefore retain a direct reference to domain semantics, and the contribution of distinct semantic portions of the KG to model performance can be readily assessed by feature importance procedures. This makes metapath-based KGC conceptually attractive in domains where "legibility" of the route from data to prediction is crucial, such as the life sciences. Metapath-based KGC therefore stands in contrast with KG "embedding" methods, the most popular form of KGC, which operate on latent-space representations of the KG and are therefore inherently opaque, "black box" strategies.
 
-However, metapath-based KGC that relies solely on raw path counts will inevitably learn the same topological imbalances that plague all KGC approaches that naively exploit the KG structure. The core functionality of `metapaths` is the implementation of a novel procedure (author's work; currently in preparation for academic publication) to correct topological imbalances in the raw path counts. 
+However, metapath-based KGC that relies solely on raw path counts will inevitably learn the same topological imbalances that plague all KGC approaches that naively exploit the KG structure. The core functionality of `metapaths` is the implementation of a novel procedure developed by the author to correct topological imbalances in the raw path counts. 
 
 ## Translating a classic Information Retrieval idea to tackle the problem of KG topological imbalance
 
@@ -67,25 +69,35 @@ where $N^R$ is the number of instances of relation type $R$ and $d_n^R$ is the d
 
 ### From INF to transformed metapath counts
 
-As outlined above, in their raw form metapath features are the counts of each metapath (of the set being considered) for the given node pair. Each metapath count thus represents a set of metapath "instances" i.e. actual paths in the KG, with each instance traversing a sequence of nodes that conform to that metapath.
+As outlined above, in their raw form metapath features are the counts of each metapath (of the set being considered) for the given node pair. Each metapath count thus represents a set of metapath "instances" i.e. actual paths in the KG, with each instance traversing a sequence of nodes that conforms to that metapath.
 
-Moreover, each node in the path is part of one KG triple (if the node is the head or tail entity at the start or end of the path) or two KG triples. Given the set of a metapath's instances between a head-tail pair, the INF values of all nodes at a given metapath "step" or "hop" can be pooled (e.g. averaged) to represent the overall specificity of the paths at that hop (see illustrations).
+Moreover, each node in the path is part of one KG triple (if the node is the head or tail entity at the start or end of the path) or two KG triples. Given the set of a metapath's instances between a head-tail pair, the INF values of all nodes at a given metapath "step" or "hop" can be pooled (e.g. averaged) to represent the overall "rarity" of the paths at that hop (see illustrations).
 
-![Package name](../assets/INF_pool1.jpg)
-![Package name](../assets/INF_pool2.jpg)
-![Package name](../assets/INF_pool3.jpg)
+![Package name](assets/INF_pool1.jpg)
+![Package name](assets/INF_pool2.jpg)
+![Package name](assets/INF_pool3.jpg)
 
 Having computed the pooled INF values, these can then be aggregated as a sum or product to arrive at an INF term for the set of all instances of the metapath for the given head-tail pair (see illustration).
 
-![Package name](../assets/AGG_INF.jpg)
+![Package name](assets/AGG_INF.jpg)
 
-As discussed previously, low degree can mean specificity as well as human bias. Because it is the result of INF pooling within each metapath hop and then aggregating across the hops, a high INF term will represent consistent node "rarity" across multiple relation types. Such consistency can support our confidence that the resulting rare paths signal robust, genuine specificity rather than a chance sequence of under-studied, low-degree nodes.
+As discussed previously, low degree can mean specificity as well as human bias. Because it is the result of INF pooling within each metapath hop followed by aggregation across the hops, a high INF term will represent consistent node rarity across multiple relation types. Such consistency can support our confidence that the resulting rare paths signal robust, genuine specificity rather than a chance sequence of under-studied, low-degree nodes.
 
-The INF term is multiplied by the metapath's raw count for the head-tail pair to produce the INF feature value transformation. Greater overall path rarity (represented by a greater INF term) will therefore provide a greater feature value boost.
+The INF term is multiplied by the metapath's raw count for the given head-tail pair to produce the INF feature value transformation. Greater overall path rarity (represented by a greater INF term) will therefore provide a greater feature value boost.
 
-During testing of the INF transformation procedure it was also found that applying a "deflator exponent" i.e. `0 >= exp < 1` before applying the INF term achieves better KGC performance than the INF term alone. This is intuitive, as extremely high metapath counts (as generated by very high-degree nodes) may need to be meaningfully dampened to strengthen the relative INF boost to the lower metapath counts (as generated by lower-degree nodes).
+During testing of the INF transformation procedure it was also found that applying a "deflator exponent" i.e. `0 >= exp < 1` before applying the INF term achieves better KGC performance than the INF term alone. This is intuitive, as extremely high metapath counts (as generated by very high-degree nodes) may need to be meaningfully dampened to ensure a stronger relative INF boost to the lower metapath counts (generated by lower-degree nodes).
 
 The transformed feature values are then ready for use in training and inference with any tabular data ML classifier design.
+
+### Performance benchmarking of INF-transformed features
+
+As of March 2025 KGC performance evaluation of INF-transformed metapath features has been carried out by the author of `metapaths` in a biomedical KGC task of predicting associations between therapeutic targets (head nodes) and adverse events (tail nodes).
+
+The results, in preparation as an academic manuscript as of the same date, show that INF transformations significantly outperform raw metapath counts in terms of KGC accuracy on positive test triples involving the least sparsely connected head nodes (bottom 15% by degree).
+
+On the same task, INF transformations also significantly outperform transformations according to Degree-Weighted Path Count (DWPC), the best-known topological bias correction procedure for metapath-based KGC, developed by Himmelstein et al (2017).
+
+Comparisons to embedding-based KGC approaches are in development.
 
 
 ### References
