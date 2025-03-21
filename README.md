@@ -87,6 +87,16 @@ During testing of the INF transformation procedure it was also found that applyi
 
 The transformed feature values are then ready for use in training and inference with any tabular data ML classifier design.
 
+### Performance benchmarking of INF-transformed features
+
+As of March 2025 KGC performance evaluation of INF transformed metapath features has been carried out by the author of `metapaths` in a biomedical KGC task of predicting associations between therapeutic targets (head nodes) and adverse events (tail nodes).
+
+The results, in preparation as an academic manuscript as of the same date, show that INF transformations significantly outperform raw metapath counts in terms of KGC accuracy on positive test triples involving the least sparsely connected head nodes (bottom 15% by degree).
+
+On the same task, INF transformations also significantly outperform transformations according to Degree-Weighted Path Count (DWPC), the best-known topological bias correction procedure for metapath-based KGC, developed by Himmelstein et al (2017).
+
+Comparisons to embedding-based KGC approaches are in development.
+
 
 ### References
 
